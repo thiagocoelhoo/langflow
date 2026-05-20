@@ -159,6 +159,22 @@ async def retrieve_vertices_order(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+"""
+Thiago:
+    1. Verify if the flow (defined by flow_id) exists
+
+    2. Check if the flow belongs to the user
+
+    3. Validates the data
+
+    4. Then starts the flow build job
+
+    5. Attach job to tthe user
+
+    6. Finally it returns the job id or streams the result through http
+"""
+
+
 @router.post("/build/{flow_id}/flow")
 async def build_flow(
     *,
@@ -226,6 +242,7 @@ async def build_flow(
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    # Thiago: (step -1) Aqui é onde um flow é criado e executado
     job_id = await start_flow_build(
         flow_id=flow_id,
         background_tasks=background_tasks,

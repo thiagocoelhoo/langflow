@@ -8,7 +8,6 @@ import { useEffect } from "react";
 import { IS_AUTO_LOGIN } from "@/constants/constants";
 import { baseURL } from "@/customization/constants";
 import { useCustomApiHeaders } from "@/customization/hooks/use-custom-api-headers";
-import { customGetAccessToken } from "@/customization/utils/custom-get-access-token";
 import {
   getAxiosWithCredentials,
   getFetchCredentials,
@@ -26,6 +25,7 @@ const api: AxiosInstance = axios.create({
   baseURL: baseURL,
   withCredentials: getAxiosWithCredentials(),
 });
+
 function ApiInterceptor() {
   const autoLogin = useAuthStore((state) => state.autoLogin);
   const setErrorData = useAlertStore((state) => state.setErrorData);
@@ -356,9 +356,9 @@ async function performStreamingRequest({
         await onData(data);
       }
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (onNetworkError) {
-      onNetworkError(e);
+      onNetworkError(e as Error);
     } else {
       throw e;
     }

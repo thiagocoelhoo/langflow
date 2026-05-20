@@ -58,6 +58,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "sidebar.nav.traces",
     tooltip: "sidebar.nav.traces",
   },
+  {
+    id: "evaluations",
+    icon: "flask-conical",
+    label: "sidebar.nav.evaluations",
+    tooltip: "sidebar.nav.evaluations",
+  },
 ];
 
 const SidebarSegmentedNav = () => {

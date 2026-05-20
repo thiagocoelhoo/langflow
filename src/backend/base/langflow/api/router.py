@@ -6,6 +6,7 @@ from langflow.api.v1 import (
     api_key_router,
     chat_router,
     endpoints_router,
+    evaluations_router,
     files_router,
     flow_events_router,
     flow_version_router,
@@ -52,6 +53,7 @@ def include_deployment_router(target_router: APIRouter) -> None:
 
 router_v1.include_router(chat_router)
 router_v1.include_router(endpoints_router)
+router_v1.include_router(evaluations_router)
 router_v1.include_router(validate_router)
 router_v1.include_router(store_router)
 router_v1.include_router(flows_router)

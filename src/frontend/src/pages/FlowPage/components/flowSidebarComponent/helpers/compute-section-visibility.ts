@@ -11,6 +11,7 @@ export interface SectionVisibilityOutput {
   showComponents: boolean;
   showBundles: boolean;
   showMcp: boolean;
+  showEvals: boolean;
   isMcpTabActive: boolean;
 }
 
@@ -44,5 +45,7 @@ export function computeSectionVisibility(
 
   const isMcpTabActive = enableNewSidebar && activeSection === "mcp";
 
-  return { showComponents, showBundles, showMcp, isMcpTabActive };
+  const showEvals = activeSection == "evaluations";
+
+  return { showComponents, showBundles, showMcp, isMcpTabActive, showEvals };
 }

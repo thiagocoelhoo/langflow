@@ -23,6 +23,7 @@ class Result(BaseModel):
     session_id: str
 
 
+# Thiago: (step5)
 async def run_graph_internal(
     graph: Graph,
     flow_id: str,

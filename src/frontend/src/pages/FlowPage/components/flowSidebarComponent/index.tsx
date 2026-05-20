@@ -1,6 +1,5 @@
 import Fuse from "fuse.js";
 import { cloneDeep, debounce } from "lodash";
-import { useTranslation } from "react-i18next";
 import {
   createContext,
   memo,
@@ -12,6 +11,7 @@ import {
   useState,
 } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
+import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import ForwardedIconComponent from "@/components/common/genericIconComponent";
 import { Button } from "@/components/ui/button";
@@ -588,7 +588,7 @@ export function FlowSidebarComponent({ isLoading }: FlowSidebarComponentProps) {
     filterType !== undefined ||
     getFilterComponent !== "";
 
-  const { showComponents, showBundles, showMcp, isMcpTabActive } =
+  const { showComponents, showBundles, showMcp, isMcpTabActive, showEvals } =
     computeSectionVisibility({
       enableNewSidebar: ENABLE_NEW_SIDEBAR,
       activeSection,
@@ -597,6 +597,7 @@ export function FlowSidebarComponent({ isLoading }: FlowSidebarComponentProps) {
       hasMcpComponents,
       hasBundleItems,
     });
+
   const showVersions =
     ENABLE_NEW_SIDEBAR && activeSection === "versions" && sidebarOpen;
 
@@ -605,14 +606,15 @@ export function FlowSidebarComponent({ isLoading }: FlowSidebarComponentProps) {
   const showTraces = ENABLE_NEW_SIDEBAR && activeSection === "traces";
 
   const SIDEBAR_EXPAND_ANIMATION_MS = 300;
-  const [isFullSidebarPanelMounted, setIsFullSidebarPanelMounted] = useState(
-    !showTraces,
-  );
-  const [isFullSidebarPanelShown, setIsFullSidebarPanelShown] = useState(
-    !showTraces,
-  );
+  const [isFullSidebarPanelMounted, setIsFullSidebarPanelMounted] =
+    useState(!showTraces);
+  const [isFullSidebarPanelShown, setIsFullSidebarPanelShown] =
+    useState(!showTraces);
   const prevShowTracesRef = useRef(showTraces);
   const expandedSidebarWidthRef = useRef<string | null>(null);
+  const shouldCollapseSidebar =
+    ENABLE_NEW_SIDEBAR &&
+    (activeSection === "traces" || activeSection === "evaluations");
 
   useEffect(() => {
     const wrapper = document.querySelector(
@@ -623,12 +625,12 @@ export function FlowSidebarComponent({ isLoading }: FlowSidebarComponentProps) {
     prevShowTracesRef.current = showTraces;
 
     if (!wrapper) {
-      setIsFullSidebarPanelMounted(!showTraces);
-      setIsFullSidebarPanelShown(!showTraces);
+      setIsFullSidebarPanelMounted(!shouldCollapseSidebar);
+      setIsFullSidebarPanelShown(!shouldCollapseSidebar);
       return;
     }
 
-    if (showTraces) {
+    if (shouldCollapseSidebar) {
       const computed =
         getComputedStyle(wrapper).getPropertyValue("--sidebar-width");
       expandedSidebarWidthRef.current = computed?.trim() || null;
@@ -661,7 +663,7 @@ export function FlowSidebarComponent({ isLoading }: FlowSidebarComponentProps) {
     // Non-traces transitions: show immediately.
     setIsFullSidebarPanelMounted(true);
     setIsFullSidebarPanelShown(true);
-  }, [showTraces]);
+  }, [shouldCollapseSidebar]);
 
   const [category, component] = getFilterComponent?.split(".") ?? ["", ""];
 

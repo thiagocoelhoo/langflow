@@ -13,6 +13,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi_pagination import Page, Params
 from fastapi_pagination.ext.sqlmodel import apaginate
 from lfx.services.cache.utils import CACHE_MISS
+from pydantic import BaseModel
+from sqlalchemy.sql.functions import func
 from sqlmodel import and_, col, select
 
 from langflow.api.utils import (
@@ -35,13 +37,19 @@ from langflow.api.v1.flows_helpers import (
     _verify_fs_path,
 )
 from langflow.api.v1.mappers.deployments.sync import retry_flow_operation_on_deployment_guard
-from langflow.api.v1.schemas import FlowListCreate
+from langflow.api.v1.schemas import EvaluationExperimentalResponse, FlowListCreate
+from langflow.graph import Graph
 from langflow.helpers.user import get_user_by_flow_id_or_endpoint_name
 from langflow.initial_setup.constants import STARTER_FOLDER_NAME
 from langflow.services.auth.utils import get_current_active_user
 from langflow.services.cache.service import ThreadingInMemoryCache
 from langflow.services.database.models.deployment.exceptions import (
     araise_if_deployment_guard_error_or_skip,
+)
+from langflow.services.database.models.evaluation.model import (
+    EvaluationExperimental,
+    EvaluationExperimentalRead,
+    EvaluationResultExperimental,
 )
 from langflow.services.database.models.flow.model import (
     AccessTypeEnum,
@@ -84,6 +92,108 @@ def _handle_unique_constraint_error(exc: Exception, *, status_code: int = 400) -
 
 # build router
 router = APIRouter(prefix="/flows", tags=["Flows"])
+
+
+def extract_tools_from_graph(graph: Graph) -> list[dict]:
+    """Extrai todas as tools de um graph.
+
+    Returns:
+        Lista com informações das tools encontradas
+    """
+    tools = []
+
+    for vertex in graph.vertices:
+        # Verificar se o vértice tem outputs com tipo "Tool"
+        has_tool_output = any("Tool" in output.get("types", []) for output in vertex.outputs)
+
+        if has_tool_output:
+            tools.append(
+                {
+                    "id": vertex.id,
+                    "vertex_type": vertex.vertex_type,  # Nome da classe (ex: "OpenAI")
+                    "display_name": vertex.display_name,
+                    "outputs": vertex.outputs,
+                    "data": vertex.data.get("node", {}),  # Template do componente
+                }
+            )
+
+    return tools
+
+
+class ToolInfo(BaseModel):
+    """Schema para informações de uma tool."""
+
+    id: str
+    vertex_type: str
+    display_name: str
+    tool_output_types: list[str]
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/{flow_id}/tools")
+async def get_all_tools(
+    *,
+    flow_id: UUID,
+    session: DbSession,
+    user: CurrentActiveUser,
+):
+    flow = await session.get(Flow, flow_id)
+
+    if flow is None:
+        raise HTTPException(status_code=404)
+
+    graph = Graph.from_payload(
+        flow.data,
+        flow_id=str(flow.id),
+        flow_name=flow.name,
+        user_id=str(user.id),
+    )
+
+    tools_data = extract_tools_from_graph(graph)
+    tools = [ToolInfo(**tool) for tool in tools_data]
+    return {"items": tools}
+
+
+@router.get("/{flow_id}/results")
+async def list_all_eval_results(
+    *,
+    flow_id: UUID,
+    # current_user: CurrentActiveUser,
+    session: DbSession,
+):
+    statement = (
+        select(EvaluationResultExperimental)
+        .join(EvaluationExperimental, EvaluationResultExperimental.evaluation_case_id == EvaluationExperimental.id)
+        .where(EvaluationExperimental.flow_id == flow_id)  # Filtro direto aqui, sem precisar do segundo JOIN
+    )
+
+    result = await session.exec(statement)
+    items = result.fetchall()
+
+    return {"items": items}
+
+
+@router.get("/{flow_id}/evaluations")
+async def list_all_eval_cases(
+    *,
+    flow_id: UUID,
+    # current_user: CurrentActiveUser,
+    session: DbSession,
+):
+    query = select(EvaluationExperimental).where(EvaluationExperimental.flow_id == flow_id)
+    count_query = (
+        select(func.count()).select_from(EvaluationExperimental).where(EvaluationExperimental.flow_id == flow_id)
+    )
+
+    items = (await session.exec(query)).fetchall()
+    count = (await session.exec(count_query)).first()
+
+    return EvaluationExperimentalResponse(
+        total_count=count,
+        evaluation_cases=[EvaluationExperimentalRead(**case.model_dump()) for case in items],
+    )
 
 
 @router.post("/", response_model=FlowRead, status_code=201)

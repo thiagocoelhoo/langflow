@@ -2,6 +2,16 @@ from .api_key import ApiKey
 from .auth import SSOConfig, SSOUserProfile
 from .deployment import Deployment
 from .deployment_provider_account import DeploymentProviderAccount
+
+# from .evaluation import EvaluationCase, EvaluationMetric, EvaluationResult
+from .evaluation import (
+    EvaluationExperimental,
+    EvaluationExperimentalCreate,
+    EvaluationExperimentalRead,
+    EvaluationResultExperimental,
+    EvaluationResultExperimentalCreate,
+    EvaluationResultExperimentalRead,
+)
 from .file import File
 from .flow import Flow
 from .flow_version import FlowVersion
@@ -18,6 +28,12 @@ __all__ = [
     "ApiKey",
     "Deployment",
     "DeploymentProviderAccount",
+    "EvaluationExperimental",
+    "EvaluationExperimentalCreate",
+    "EvaluationExperimentalRead",
+    "EvaluationResultExperimental",
+    "EvaluationResultExperimentalCreate",
+    "EvaluationResultExperimentalRead",
     "File",
     "Flow",
     "FlowVersion",

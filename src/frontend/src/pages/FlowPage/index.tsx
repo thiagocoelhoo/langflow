@@ -26,6 +26,7 @@ import { customStringify } from "@/utils/reactflowUtils";
 import { cn } from "@/utils/utils";
 import useFlowStore from "../../stores/flowStore";
 import useFlowsManagerStore from "../../stores/flowsManagerStore";
+import FlowEvaluations from "./components/EvaluationComponent/FlowEvaluations";
 import {
   FlowSearchProvider,
   FlowSidebarComponent,
@@ -42,6 +43,7 @@ function FlowPageMainContent({
 }): JSX.Element {
   const { activeSection } = useSidebar();
   const showTraces = ENABLE_NEW_SIDEBAR && activeSection === "traces";
+  const showEvals = ENABLE_NEW_SIDEBAR && activeSection === "evaluations";
 
   if (showTraces) {
     return (
@@ -56,6 +58,10 @@ function FlowPageMainContent({
         />
       </div>
     );
+  }
+
+  if (showEvals) {
+    return <FlowEvaluations flowId={flowId} />;
   }
 
   return <Page setIsLoading={setIsLoading} />;
@@ -331,6 +337,7 @@ export default function FlowPage({ view }: { view?: boolean }): JSX.Element {
           </div>
         )}
       </div>
+
       {blocker.state === "blocked" && (
         <>
           {!isBuilding && currentSavedFlow && (

@@ -150,6 +150,10 @@ def validate_input_and_tweaks(input_request: SimplifiedAPIRequest) -> None:
             raise InvalidChatInputError(msg)
 
 
+# Thiago: (step3) Essa função também realiza diversas
+#         verificações e inicia o job **run_graph_internal**
+#
+# Thiago: (step 4)
 async def simple_run_flow(
     flow: Flow,
     input_request: SimplifiedAPIRequest,
@@ -439,6 +443,10 @@ async def get_flow_for_current_user(
     return await get_flow_by_id_or_endpoint_name(flow_id_or_name, current_user.id)
 
 
+# Thiago: (step2) Esse é o controller do endpoint.
+#         Ele faz várias verificações de permissões, telimetria e outros.
+#         Após todas as verificaçoes ele chama **simple_run_flow**
+#         Essa função também faz o tratamento de exceções.
 async def _run_flow_internal(
     *,
     background_tasks: BackgroundTasks,
@@ -577,6 +585,11 @@ async def _run_flow_internal(
         raise APIException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, exception=exc, flow=flow) from exc
 
     return result
+
+
+# Thiago: Esse endpoint é usado para executar um flow por meio da API
+
+# Thiago: (step1) Esse é o endpoint em si. Ele apenas chama o _run_flow_internal
 
 
 @router.post("/run/{flow_id_or_name}", response_model=None, response_model_exclude_none=True)

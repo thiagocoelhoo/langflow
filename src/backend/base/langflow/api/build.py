@@ -125,6 +125,8 @@ async def get_flow_events_response(
     """Get events for a specific build job, either as a stream or single event."""
     try:
         main_queue, event_manager, event_task, _ = queue_service.get_queue_data(job_id)
+
+        # Streaming mode
         if event_delivery in (EventDeliveryType.STREAMING, EventDeliveryType.DIRECT):
             if event_task is None:
                 await logger.aerror(f"No event task found for job {job_id}")
@@ -253,6 +255,8 @@ async def generate_flow_events(
                 graph = await create_graph(fresh_session, flow_id_str, flow_name)
 
             graph.set_run_id(run_id)
+
+            # Thiago: O que esse sort_vertices faz?
             first_layer = sort_vertices(graph)
 
             for vertex_id in first_layer:

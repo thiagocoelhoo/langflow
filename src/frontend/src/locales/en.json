@@ -378,6 +378,7 @@
   "sidebar.nav.versions": "Versions",
   "sidebar.nav.versionHistory": "Version History",
   "sidebar.nav.traces": "Traces",
+  "sidebar.nav.evaluations": "Evaluations",
   "sidebar.mcp.title": "MCP Servers",
   "sidebar.mcp.empty": "No MCP Servers Added",
   "sidebar.mcp.add": "Add MCP Server",

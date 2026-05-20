@@ -270,6 +270,7 @@ const HomePage = ({ type }: { type: "flows" | "components" | "mcp" }) => {
           {ENABLE_DATASTAX_LANGFLOW && <CustomBanner />}
           <div className="flex flex-1 flex-col justify-start p-4">
             <div className="flex h-full flex-col justify-start">
+              {/* TODO: O header é justamente o que organiza as abas */}
               <HeaderComponent
                 folderName={folderName}
                 flowType={flowType}
