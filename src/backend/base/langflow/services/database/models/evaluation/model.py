@@ -1,5 +1,6 @@
 import enum
-from typing import TYPE_CHECKING
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, TypedDict
 from uuid import UUID, uuid4
 
 from sqlalchemy import Enum as SQLEnum
@@ -7,176 +8,144 @@ from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from langflow.services.database.models.flow import Flow
+    from langflow.services.database.models.traces.model import TraceTable
     from langflow.services.database.models.user.model import User
 
 
-class EvaluationAlgorithm(str, enum.Enum):
-    """
-    EvaluationAlgorithms:
-        - Agent as a jugde:
-            this algorithms uses other llm to evaluate the target agent
+def utc_now():
+    return datetime.now(timezone.utc)
 
-        - Tool Evaluation:
-            this algorithm validate if the right tools are been used and
-            also check if the arguments passed are apropriated
 
-        - RAG Evaluation:
-            this algorithm validate the RAG output based in some custom
-            rule defined in the user's prompt
-    """
+class EvalCaseInput(TypedDict):
+    messages: list[str]
 
-    AGENT_AS_JUDGE = "AGENT_AS_JUDGE"
+
+class EvalCaseExpectedOutput(TypedDict):
+    message: str
+    tools: list[str]
+
+
+class EvalAlgorithm(str, enum.Enum):
+    AGENT_AS_A_JUDGE = "AGENT_AS_A_JUDGE"
     TOOL_EVALUATION = "TOOL_EVALUATION"
     RAG_EVALUATION = "RAG_EVALUATION"
 
 
-class EvaluationMetric(SQLModel, table=True):
+class BaseModel(SQLModel):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
+
+    created_at: datetime | None = Field(default_factory=utc_now)
+    updated_at: datetime | None = None
+    deleted_at: datetime | None = None
+
+
+# ===================================================================
+# Eval Metric
+# ===================================================================
+
+
+class CaseMetricLink(SQLModel, table=True):
+    case_id: UUID | None = Field(
+        default=None,
+        foreign_key="eval_case.id",
+        primary_key=True,
+    )
+    metric_id: UUID | None = Field(
+        default=None,
+        foreign_key="eval_metric.id",
+        primary_key=True,
+    )
+
+
+class EvalMetric(BaseModel, table=True):
+    __tablename__ = "eval_metric"  # type: ignore[assignment]
+
     name: str
-    algorithm: EvaluationAlgorithm = Field(
+    algorithm: EvalAlgorithm = Field(
         sa_column=Column(
             SQLEnum(
-                EvaluationAlgorithm,
+                EvalAlgorithm,
                 name="evaluation_algorithm_enum",
             ),
             nullable=False,
         )
     )
-    data: dict | None = Field(default=None, sa_column=Column(JSON))
-    cases: list["EvaluationCase"] = Relationship(back_populates="metric")
+    params: dict | None = Field(default=None, sa_column=Column(JSON))
 
 
-class EvaluationMetricCreate(SQLModel):
+class EvalMetricCreate(SQLModel):
     name: str
-    data: dict | None
-
-
-class EvaluationCase(SQLModel, table=True):
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    name: str
-    flow_id: UUID = Field(foreign_key="flow.id")
-    flow: "Flow" = Relationship()
-    metric_id: UUID = Field(foreign_key="evaluationmetric.id")
-    metric: EvaluationMetric = Relationship(back_populates="cases")
-    input: str
-    expected_output: str
-    min_iterations: int
-    results: list["EvaluationResult"] = Relationship(back_populates="evaluation_case")
-
-
-class EvaluationCaseRead(SQLModel):
-    id: UUID
-    name: str
-    flow_id: UUID
-    metric_id: UUID
-    input: str
-    expected_output: str
-    min_iterations: int
-    # TODO (thiago): Adicionar campo results
-    # results: list["EvaluationResultRead"]
-
-
-class EvaluationCaseCreate(SQLModel):
-    name: str
-    flow_id: UUID
-    metric_id: UUID
-    input: str
-    expected_output: str
-    min_iterations: int
-
-
-class EvaluationResult(SQLModel, table=True):
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    evaluation_case_id: UUID = Field(foreign_key="evaluationcase.id")
-    evaluation_case: EvaluationCase = Relationship(back_populates="results")
-    input_tokens: int
-    output_tokens: int
-    actual_output: str
-    score: float
-    time: float
+    algorithm: EvalAlgorithm
+    params: dict | None
 
 
 # ===================================================================
-# -------------------------- Experimental ---------------------------
+# Eval Case
 # ===================================================================
 
 
-class BaseModel(SQLModel):
-    created_at: str
-    updated_at: str
+class EvalCase(BaseModel, table=True):
+    __tablename__ = "eval_case"  # type: ignore[assignment]
 
-
-class EvaluationExperimental(SQLModel, table=True):
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str
-    input: str
-    expected_output: str
-    prompt: str
-    model_name: str
+    input: EvalCaseInput = Field(sa_column=Column(JSON))
+    expected_output: EvalCaseExpectedOutput = Field(sa_column=Column(JSON))
+    model_name: str | None = Field(default=None, nullable=True)
+    # min_iterations: int (?)
 
     flow_id: UUID = Field(foreign_key="flow.id")
     flow: "Flow" = Relationship()
-
-    user_id: UUID = Field(foreign_key="user.id")
-    user: "User" = Relationship()
-
-
-class EvaluationExperimentalCreate(SQLModel):
-    name: str
-    input: str
-    prompt: str
-    expected_output: str
-    model_name: str
-    flow_id: UUID
+    results: list["EvalRun"] = Relationship(back_populates="eval_case")
+    metrics: list[EvalMetric] = Relationship(link_model=CaseMetricLink)
 
 
-class EvaluationExperimentalRead(SQLModel):
+class EvalCaseRead(SQLModel):
     id: UUID
     name: str
-    input: str
-    expected_output: str
-    model_name: str
-    prompt: str
-
+    input: dict | str
+    expected_output: dict
+    model_name: str | None
+    # min_iterations: int (?)
+    metrics: list[UUID] = []
     flow_id: UUID
-    user_id: UUID
+
+
+class EvalCaseCreate(SQLModel):
+    name: str
+    input: dict
+    expected_output: dict
+    model_name: str | None
+    # min_iterations: int (?)
+    metrics: list[UUID]
+    flow_id: UUID
+    # metric_id: UUID
 
 
 # ===================================================================
+# Eval Run
+# ===================================================================
 
 
-class EvaluationResultExperimental(SQLModel, table=True):
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    actual_output: str
+class EvalRun(BaseModel, table=True):
+    __tablename__ = "eval_run"  # type: ignore[assignment]
+
+    eval_case_id: UUID = Field(foreign_key="eval_case.id")
+    eval_case: EvalCase = Relationship(back_populates="results")
+
+    eval_metric_id: UUID = Field(foreign_key="eval_metric.id")
+    eval_metric: EvalMetric = Relationship()
+
+    trace_id: UUID = Field(foreign_key="trace.id")
+    trace: "TraceTable" = Relationship()
+
     score: float
-    eval_message: str
-    success: bool
 
-    user_id: UUID = Field(foreign_key="user.id")
-    user: "User" = Relationship()
+    message: str | None = Field(default=None)
+    err_message: str | None = Field(default=None)
 
-    evaluation_case_id: UUID = Field(foreign_key="evaluationexperimental.id")
-    evaluation_case: EvaluationExperimental = Relationship()
-
-
-class EvaluationResultExperimentalCreate(SQLModel):
-    actual_output: str
-    score: float
-    eval_message: str
-    user_id: UUID
-    evaluation_case_id: UUID
-    success: bool
-
-
-class EvaluationResultExperimentalRead(SQLModel):
-    id: UUID
-    actual_output: str
-    score: float
-    eval_message: str
-    success: bool
-
-    user_id: UUID
-    user: "User"
-
-    evaluation_case_id: UUID
-    evaluation_case: EvaluationExperimental
+    # TODO: Adicionar os campos abaixo à tabela
+    # status: bool
+    #
+    # input_tokens: int
+    # output_tokens: int
+    # duration: float

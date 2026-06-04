@@ -5,12 +5,9 @@ from .deployment_provider_account import DeploymentProviderAccount
 
 # from .evaluation import EvaluationCase, EvaluationMetric, EvaluationResult
 from .evaluation import (
-    EvaluationExperimental,
-    EvaluationExperimentalCreate,
-    EvaluationExperimentalRead,
-    EvaluationResultExperimental,
-    EvaluationResultExperimentalCreate,
-    EvaluationResultExperimentalRead,
+    EvalCase,
+    EvalMetric,
+    EvalRun,
 )
 from .file import File
 from .flow import Flow
@@ -28,12 +25,9 @@ __all__ = [
     "ApiKey",
     "Deployment",
     "DeploymentProviderAccount",
-    "EvaluationExperimental",
-    "EvaluationExperimentalCreate",
-    "EvaluationExperimentalRead",
-    "EvaluationResultExperimental",
-    "EvaluationResultExperimentalCreate",
-    "EvaluationResultExperimentalRead",
+    "EvalCase",
+    "EvalMetric",
+    "EvalRun",
     "File",
     "Flow",
     "FlowVersion",
