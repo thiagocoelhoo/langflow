@@ -25,10 +25,9 @@ from langflow.api.utils import DbSession
 from langflow.api.utils.core import CurrentActiveUser
 from langflow.api.v1.flows_helpers import _read_flow
 from langflow.api.v1.schemas import (
-    # EvaluationCasesResponse,
-    EvaluationExperimentalResponse,
-    # EvaluationMetricsResponse,
-    # EvaluationResultsResponse,
+    EvalCasesResponse,
+    EvalMetricsResponse,
+    EvalRunsResponse,
     RunResponse,
     SimplifiedAPIRequest,
 )
@@ -36,23 +35,16 @@ from langflow.events.event_manager import EventManager
 from langflow.exceptions.api import APIException, InvalidChatInputError
 from langflow.processing.process import process_tweaks, run_graph_internal
 from langflow.services.database.models.evaluation.model import (
-    EvaluationExperimental,
-    EvaluationExperimentalCreate,
-    EvaluationExperimentalRead,
-    EvaluationResultExperimental,
-    EvaluationResultExperimentalRead,
+    EvalCase,
+    EvalCaseCreate,
+    EvalCaseRead,
+    EvalMetric,
+    EvalMetricCreate,
+    EvalRun,
 )
 from langflow.services.database.models.flow.model import Flow, FlowRead
 from langflow.services.database.models.user.model import User, UserRead
 from langflow.services.deps import get_auth_service
-
-# from langflow.services.database.models.evaluation import EvaluationCase, EvaluationMetric, EvaluationResult
-# from langflow.services.database.models.evaluation.model import (
-#     EvaluationCaseCreate,
-#     EvaluationCaseRead,
-#     EvaluationMetricCreate,
-#     EvaluationSchemaExperimental,
-# )
 
 router = APIRouter(prefix="/evaluations", tags=["Evaluations"])
 
@@ -344,12 +336,11 @@ class EvalMiscServices:
 class Judge:
     def __init__(
         self,
-        provider: str,
         model_name: str,
         user_id: UUID,
         prompt: str | None = None,
     ):
-        self._provider = provider
+        self._provider = get_provider_for_model_name(model_name)
         self._model_name = model_name
         self._user_id = user_id
         self._prompt = prompt or (
@@ -458,89 +449,8 @@ class Judge:
         return eval_result
 
 
-# @router.post("/{evaluation_id}/run")
-# async def execute_evaluation(
-#     *,
-#     evaluation_case: Annotated[EvaluationCase, Depends(EvalMiscServices.get_evaluation_case)],
-# ):
-#     # TODO: criar campos para configuracao do LLM da evaluation
-#     model = {
-#         "provider": "Google generative AI",
-#         "name": "gemini-3.1-flash-lite",
-#     }
-#     user_id = "a45ef866-a513-4642-b029-2b59aff3d06f"
-
-#     input_request = SimplifiedAPIRequest(
-#         input_value=evaluation_case.input,
-#         input_type="chat",
-#         output_type="chat",
-#         session_id=str(uuid4()),
-#     )
-#     api_key_user = await EvalMiscServices.get_user_api_key()
-
-#     metric_data = evaluation_case.metric.data
-
-#     judge = Judge(
-#         provider=model["provider"],
-#         model_name=model["name"],
-#         user_id=user_id,
-#         prompt=metric_data.get("prompt") if metric_data else None,
-#     )
-
-#     actual_output: RunResponse = await EvalMiscServices.run_flow_internal(
-#         flow=evaluation_case.flow,
-#         input_request=input_request,
-#         api_key_user=api_key_user,
-#     )
-
-#     eval_result = judge.eval(
-#         expected_output=evaluation_case.expected_output,
-#         actual_output=actual_output,
-#     )
-
-#     """
-#     Parametros necessários para cada tipo de algoritmo
-
-#     # LLM-AS-A-JUDGE:
-#         - input_value
-#         - expected_output
-#         - model_provider
-#         - model_name
-#         - user_id
-#         - evaluation_prompt
-#         - [?] min_iterations
-
-#     """
-#     return eval_result
-
-
-@router.get("/")
-async def read_all_evaluation_cases(
-    *,
-    skip: int = 0,
-    limit: int = 10,
-    session: DbSession,
-) -> EvaluationExperimentalResponse:
-    """Retrieve a list of evaluation cases from the database with pagination."""
-
-    query: SelectOfScalar = select(EvaluationExperimental).offset(skip).limit(limit)
-    count_query = select(func.count()).select_from(EvaluationExperimental)
-
-    evaluation_cases = (await session.exec(query)).fetchall()
-    total_count = (await session.exec(count_query)).first()
-
-    return EvaluationExperimentalResponse(
-        total_count=total_count,
-        evaluation_cases=[EvaluationExperimentalRead(**case.model_dump()) for case in evaluation_cases],
-    )
-
-
 async def _get_eval_case(id: UUID, session: AsyncSession):
-    statement = (
-        select(EvaluationExperimental)
-        .where(EvaluationExperimental.id == id)
-        .options(selectinload(EvaluationExperimental.flow))
-    )
+    statement = select(EvalCase).where(EvalCase.id == id).options(selectinload(EvalCase.flow))
 
     result = await session.exec(statement)
     eval_case = result.first()
@@ -551,38 +461,13 @@ async def _get_eval_case(id: UUID, session: AsyncSession):
     return eval_case
 
 
-@router.post("/")
-async def create_evaluation_case(
-    *,
-    payload: EvaluationExperimentalCreate,
-    current_user: CurrentActiveUser,
-    session: DbSession,
-) -> EvaluationExperimentalRead:
-    """Add a new evaluation case to the database"""
-    try:
-        new_evaluation = EvaluationExperimental(
-            user_id=current_user.id,
-            **payload.model_dump(),
-        )
-        session.add(new_evaluation)
-        await session.flush()
-        await session.refresh(new_evaluation)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-    return EvaluationExperimentalRead(**new_evaluation.model_dump())
-
-
 @router.post("/{evaluation_id}/run")
-async def execute_evaluation(
+async def run_eval(
     *,
     evaluation_id: str,
     session: DbSession,
     current_user: CurrentActiveUser,
-    # payload: EvaluationExperimentalCreate,
-) -> EvaluationResultExperimental:
+) -> EvalRun:
     eval_case = await _get_eval_case(UUID(evaluation_id), session)
 
     input_request = SimplifiedAPIRequest(
@@ -595,7 +480,6 @@ async def execute_evaluation(
     api_key_user = await EvalMiscServices.get_user_api_key()
 
     judge = Judge(
-        provider=get_provider_for_model_name(eval_case.model_name),
         model_name=eval_case.model_name,
         user_id=current_user.id,
     )
@@ -645,13 +529,20 @@ async def execute_evaluation(
         eval_message = judge_response_text
 
     threshold = 0.5
-    eval_result = EvaluationResultExperimental(
-        actual_output=actual_output_text,
+    trace_id = None
+    input_tokens = 0
+    output_tokens = 0
+    duration = 0
+
+    eval_result = EvalRun(
+        eval_case_id=UUID(evaluation_id),
+        trace_id=trace_id,
         score=score,
-        eval_message=eval_message,
-        user_id=current_user.id,
-        evaluation_case_id=UUID(evaluation_id),
-        success=score >= threshold,
+        status=score >= threshold,
+        result_explanation=eval_message,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        duration=duration,
     )
 
     session.add(eval_result)
@@ -661,162 +552,53 @@ async def execute_evaluation(
 
 
 @router.get("/{evaluation_id}/results")
-async def list_all_eval_results(
+async def list_eval_runs(
     *,
     evaluation_id: str,
-    # current_user: CurrentActiveUser,
     session: DbSession,
 ):
-    query = select(
-        EvaluationResultExperimental,
-    ).where(
-        EvaluationResultExperimental.evaluation_case_id == evaluation_id,
+    query = (
+        select(
+            EvalRun,
+        )
+        .where(
+            EvalRun.eval_case_id == evaluation_id,
+        )
+        .options(
+            selectinload(EvalRun.eval_case),
+        )
     )
 
     items = (await session.exec(query)).fetchall()
 
     return {
-        "items": [EvaluationResultExperimentalRead(**item.model_dump()) for item in items],
+        "items": [
+            {
+                # **item.model_dump(),
+                "eval_case": item.eval_case,
+                "eval_metric": item.eval_metric,
+            }
+            for item in items
+        ],
     }
 
 
-# =============================================================================
-#                          Evaluation Metrics
-# =============================================================================
+@router.get("/{evaluation_id}/results")
+async def list_all_evaluation_results(
+    *,
+    evaluation_id: UUID | None = None,
+    skip: int = 0,
+    limit: int = 10,
+    session: DbSession,
+) -> EvalRunsResponse:
+    # TODO: implementar filtros (project, user, evaluation case, folder, etc)
+    query = select(EvalRun).offset(skip).limit(limit)
+    count_query = select(func.count()).select_from(EvalRun)
 
+    evaluation_results = (await session.exec(query)).fetchall()
+    total_count = (await session.exec(count_query)).first()
 
-# @router.get("/")
-# async def read_all_evaluation_cases(
-#     *,
-#     skip: int = 0,
-#     limit: int = 10,
-#     session: DbSession,
-# ) -> EvaluationCasesResponse:
-#     """Retrieve a list of evaluation cases from the database with pagination."""
-
-#     query: SelectOfScalar = select(EvaluationCase).offset(skip).limit(limit)
-#     count_query = select(func.count()).select_from(EvaluationCase)
-
-#     evaluation_cases = (await session.exec(query)).fetchall()
-#     total_count = (await session.exec(count_query)).first()
-
-#     return EvaluationCasesResponse(
-#         total_count=total_count,
-#         evaluation_cases=[EvaluationCaseRead(**case.model_dump()) for case in evaluation_cases],
-#     )
-
-
-# @router.get("/{evaluation_id}")
-# async def get_evaluation_case_by_id(
-#     evaluation_id: UUID,
-#     session: DbSession,
-# ) -> EvaluationCaseRead:
-#     """Retrieve an evaluation case from the database"""
-#     evaluation_case = await session.get(EvaluationCase, evaluation_id)
-
-#     if evaluation_case is None:
-#         raise HTTPException(status_code=404)
-
-#     return EvaluationCaseRead.model_validate(evaluation_case, from_attributes=True)
-
-
-# @router.post("/")
-# async def create_evaluation_case(
-#     *,
-#     evaluation_case: EvaluationCaseCreate,
-#     session: DbSession,
-# ) -> EvaluationCase:
-#     """Add a new evaluation case to the database"""
-#     try:
-#         new_evaluation = EvaluationCase.model_validate(evaluation_case, from_attributes=True)
-#         session.add(new_evaluation)
-#         await session.flush()
-#         await session.refresh(new_evaluation)
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e)) from e
-
-#     return new_evaluation
-
-
-# # =============================================================================
-# #                          Evaluation Metrics
-# # =============================================================================
-
-
-# @router.get("/metrics")
-# async def read_all_metrics(
-#     *,
-#     session: DbSession,
-#     skip: int = 0,
-#     limit: int = 10,
-# ) -> EvaluationMetricsResponse:
-#     query = select(EvaluationMetric).offset(skip).limit(limit)
-#     count_query = select(func.count()).select_from(EvaluationMetric)
-
-#     metrics = (await session.exec(query)).fetchall()
-#     total_count = (await session.exec(count_query)).first()
-
-#     return EvaluationMetricsResponse(
-#         total_count=total_count,
-#         evaluation_metrics=list(metrics),
-#     )
-
-
-# @router.get("/metrics/{metric_id}")
-# async def get_metric_by_id(
-#     *,
-#     metric_id: UUID,
-#     session: DbSession,
-# ) -> EvaluationMetric:
-#     metric = await session.get(EvaluationMetric, metric_id)
-
-#     if metric is None:
-#         raise HTTPException(status_code=404)
-
-#     # TODO: adicionar schema e validação para EvaluationMetricRead
-#     return metric
-
-
-# @router.post("/metrics")
-# async def create_metric(
-#     *,
-#     metric: EvaluationMetricCreate,
-#     session: DbSession,
-# ) -> EvaluationMetric:
-#     try:
-#         new_metric = EvaluationMetric.model_validate(metric, from_attributes=True)
-#         session.add(new_metric)
-#         await session.flush()
-#         await session.refresh(new_metric)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e)) from e
-
-#     return new_metric
-
-
-# # =============================================================================
-# #                          Evaluation Result
-# # =============================================================================
-
-
-# @router.get("/{evaluation_id}/results")
-# async def list_all_evaluation_results(
-#     *,
-#     evaluation_id: UUID | None = None,
-#     skip: int = 0,
-#     limit: int = 10,
-#     session: DbSession,
-# ) -> EvaluationResultsResponse:
-#     # TODO: implementar filtros (project, user, evaluation case, folder, etc)
-#     query = select(EvaluationResult).offset(skip).limit(limit)
-#     count_query = select(func.count()).select_from(EvaluationResult)
-
-#     evaluation_results = (await session.exec(query)).fetchall()
-#     total_count = (await session.exec(count_query)).first()
-
-#     return EvaluationResultsResponse(
-#         total_count=total_count,
-#         evaluation_results=list(evaluation_results),
-#     )
+    return EvalRunsResponse(
+        total_count=total_count,
+        eval_runs=list(evaluation_results),
+    )
