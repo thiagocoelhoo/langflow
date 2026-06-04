@@ -1,7 +1,8 @@
 from langflow.api.v1.api_key import router as api_key_router
 from langflow.api.v1.chat import router as chat_router
 from langflow.api.v1.endpoints import router as endpoints_router
-from langflow.api.v1.evaluations import router as evaluations_router
+from langflow.api.v1.eval_cases import router as eval_cases_router
+from langflow.api.v1.eval_metrics import router as eval_metrics_router
 from langflow.api.v1.files import router as files_router
 from langflow.api.v1.flow_events import router as flow_events_router
 from langflow.api.v1.flow_version import router as flow_version_router
@@ -28,7 +29,8 @@ __all__ = [
     "api_key_router",
     "chat_router",
     "endpoints_router",
-    "evaluations_router",
+    "eval_cases_router",
+    "eval_metrics_router",
     "files_router",
     "flow_events_router",
     "flow_version_router",

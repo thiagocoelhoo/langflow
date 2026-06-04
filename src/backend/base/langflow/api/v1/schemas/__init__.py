@@ -22,10 +22,11 @@ from langflow.schema.schema import InputType, OutputType, OutputValue
 from langflow.serialization.serialization import get_max_items_length, get_max_text_length, serialize
 from langflow.services.database.models.api_key.model import ApiKeyRead
 from langflow.services.database.models.base import orjson_dumps
-
-# from langflow.services.database.models.evaluation import EvaluationMetric, EvaluationResult
-# from langflow.services.database.models.evaluation.model import EvaluationCaseRead, EvaluationExperimentalRead
-from langflow.services.database.models.evaluation.model import EvaluationExperimentalRead
+from langflow.services.database.models.evaluation.model import (
+    EvalCaseRead,
+    EvalMetric,
+    EvalRun,
+)
 from langflow.services.database.models.flow.model import FlowCreate, FlowRead
 from langflow.services.database.models.user.model import UserRead
 from langflow.services.tracing.schema import Log
@@ -545,21 +546,16 @@ class MCPInstallRequest(BaseModel):
     transport: Literal["sse", "streamablehttp"] | None = None
 
 
-class EvaluationExperimentalResponse(BaseModel):
+class EvalCasesResponse(BaseModel):
     total_count: int
-    evaluation_cases: list[EvaluationExperimentalRead]
+    eval_cases: list[EvalCaseRead]
 
 
-# class EvaluationCasesResponse(BaseModel):
-#     total_count: int
-#     evaluation_cases: list[EvaluationCaseRead]
+class EvalMetricsResponse(BaseModel):
+    total_count: int
+    eval_metrics: list[EvalMetric]
 
 
-# class EvaluationMetricsResponse(BaseModel):
-#     total_count: int
-#     evaluation_metrics: list[EvaluationMetric]
-
-
-# class EvaluationResultsResponse(BaseModel):
-#     total_count: int
-#     evaluation_results: list[EvaluationResult]
+class EvalRunsResponse(BaseModel):
+    total_count: int
+    eval_runs: list[EvalRun]
