@@ -26,7 +26,7 @@ import { customStringify } from "@/utils/reactflowUtils";
 import { cn } from "@/utils/utils";
 import useFlowStore from "../../stores/flowStore";
 import useFlowsManagerStore from "../../stores/flowsManagerStore";
-import FlowEvaluations from "./components/EvaluationComponent/FlowEvaluations";
+import FlowEvaluations from "./components/EvaluationComponent";
 import {
   FlowSearchProvider,
   FlowSidebarComponent,
