@@ -2,14 +2,14 @@ import { api } from "../../api";
 import { getURL } from "../../helpers/constants";
 import { UseRequestProcessor } from "../../services/request-processor";
 
-export const useGetFlowEvalResults = (flowId: string) => {
+export const useGetEvaluationResults = (eval_id: string) => {
   const { query } = UseRequestProcessor();
 
-  const getFlowResults = async () => {
-    const response = await api.get(`${getURL("FLOWS")}/${flowId}/results`);
+  const getEvalResults = async () => {
+    const response = await api.get(`${getURL("EVALUATIONS")}/${eval_id}/runs`);
     return response.data;
   };
 
-  const queryResult = query(["FlowResults"], getFlowResults);
+  const queryResult = query(["EvaluationResults"], getEvalResults);
   return queryResult;
 };
