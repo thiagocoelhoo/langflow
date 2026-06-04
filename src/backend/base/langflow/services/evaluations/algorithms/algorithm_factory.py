@@ -1,5 +1,3 @@
-import uuid
-
 from langflow.services.database.models.evaluation.model import EvalAlgorithm
 from langflow.services.evaluations.algorithms.algorithm import Algorithm
 from langflow.services.evaluations.algorithms.llm_as_a_judge import Judge

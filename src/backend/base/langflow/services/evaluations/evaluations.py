@@ -21,8 +21,7 @@ from langflow.services.evaluations.algorithms.algorithm_factory import get_algor
 class EvalCaseService:
     @staticmethod
     async def get_eval_case(eval_id: UUID, session: AsyncSession) -> EvalCase:
-        """
-        Retrieve evaluation case by ID from the database.
+        """Retrieve evaluation case by ID from the database.
 
         Args:
             eval_id: The unique identifier (UUID) of the evaluation case.
@@ -136,7 +135,6 @@ async def run_flow_internal(
         HTTPException: For flow not found (404) or invalid input (400)
         APIException: For internal execution errors (500)
     """
-
     run_id = str(uuid4())
 
     try:
