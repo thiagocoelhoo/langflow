@@ -153,6 +153,7 @@ class NativeTracer(BaseTracer):
             "inputs": serialize(inputs),
             "metadata": metadata or {},
             "start_time": start_time,
+            "vertex_id": vertex.id if vertex else None,
         }
 
         # Stored so get_langchain_callback() can attach LangChain child spans to this component.
@@ -166,6 +167,7 @@ class NativeTracer(BaseTracer):
         outputs: dict[str, Any] | None = None,
         error: Exception | None = None,
         logs: Sequence[Log | dict] = (),
+        vertex: Vertex | None = None,
     ) -> None:
         """End a component-level trace span.
 
@@ -175,6 +177,7 @@ class NativeTracer(BaseTracer):
             outputs: Output data
             error: Optional error
             logs: Optional logs
+            vertex: Current vertex
         """
         if not self._ready:
             return
@@ -220,6 +223,7 @@ class NativeTracer(BaseTracer):
                 error=str(error) if error else None,
                 attributes=attributes,
                 span_source="component",
+                vertex_id=vertex.id if vertex else None,
             )
         )
 
@@ -342,6 +346,7 @@ class NativeTracer(BaseTracer):
                         outputs=span_data["outputs"],
                         error=span_data.get("error"),
                         attributes=span_data.get("attributes") or {},
+                        vertex_id=span_data.get("vertex_id"),
                     )
                     await session.merge(span)
 
@@ -507,6 +512,7 @@ class NativeTracer(BaseTracer):
         attributes: dict[str, Any] | None = None,
         span_source: str,
         parent_span_id: str | None = None,
+        vertex_id: str | None = None,
     ) -> dict[str, Any]:
         """Build a completed span dict for storage.
 
@@ -537,6 +543,7 @@ class NativeTracer(BaseTracer):
             "error": error,
             "attributes": attributes or {},
             "span_source": span_source,
+            "vertex_id": vertex_id,
         }
         if parent_span_id is not None:
             span["parent_span_id"] = parent_span_id

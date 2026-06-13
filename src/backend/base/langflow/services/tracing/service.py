@@ -399,6 +399,7 @@ class TracingService(Service):
                         outputs=trace_context.all_outputs[component_trace_context.trace_name],
                         error=error,
                         logs=component_trace_context.logs[component_trace_context.trace_name],
+                        vertex=component_trace_context.vertex,
                     )
                 except Exception:  # noqa: BLE001
                     logger.exception(f"Error ending trace {component_trace_context.trace_name}")

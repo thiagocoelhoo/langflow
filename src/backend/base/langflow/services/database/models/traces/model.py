@@ -289,6 +289,7 @@ class SpanTable(SpanBase, table=True):  # type: ignore[call-arg]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     trace_id: UUID = Field(foreign_key="trace.id", index=True, description="Parent trace ID")
+    vertex_id: str | None = Field(default=None, nullable=True)
     parent_span_id: UUID | None = Field(
         default=None,
         foreign_key="span.id",
@@ -311,6 +312,7 @@ class SpanCreate(SQLModel):
     name: str
     span_type: SpanType = SpanType.CHAIN
     trace_id: UUID
+    vertex_id: UUID | None = None
     parent_span_id: UUID | None = None
     inputs: dict[str, Any] | None = None
     # OTel attributes

@@ -53,6 +53,7 @@ class BaseTracer(ABC):
         outputs: dict[str, Any] | None = None,
         error: Exception | None = None,
         logs: Sequence[Log | dict] = (),
+        vertex: Vertex | None = None,
     ) -> None:
         raise NotImplementedError
 

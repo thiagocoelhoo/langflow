@@ -1151,6 +1151,9 @@ class Component(CustomComponent):
     async def _build_with_tracing(self):
         inputs = self.get_trace_as_inputs()
         metadata = self.get_trace_as_metadata()
+        vertex = self.get_vertex()
+        metadata["vertex_id"] = vertex.id if vertex else None
+
         async with self.tracing_service.trace_component(self, self.trace_name, inputs, metadata):
             results, artifacts = await self._build_results()
             self.tracing_service.set_outputs(self.trace_name, results)
