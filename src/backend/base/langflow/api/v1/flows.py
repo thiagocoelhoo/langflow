@@ -4,7 +4,7 @@ import asyncio
 import io
 import threading
 import zipfile
-from typing import Annotated
+from typing import Annotated, Any, cast
 from uuid import UUID
 
 import orjson
@@ -38,7 +38,7 @@ from langflow.api.v1.flows_helpers import (
     _verify_fs_path,
 )
 from langflow.api.v1.mappers.deployments.sync import retry_flow_operation_on_deployment_guard
-from langflow.api.v1.schemas import EvalCasesResponse, FlowListCreate
+from langflow.api.v1.schemas import FlowListCreate
 from langflow.graph import Graph
 from langflow.helpers.user import get_user_by_flow_id_or_endpoint_name
 from langflow.initial_setup.constants import STARTER_FOLDER_NAME
@@ -48,8 +48,11 @@ from langflow.services.database.models.deployment.exceptions import (
     araise_if_deployment_guard_error_or_skip,
 )
 from langflow.services.database.models.evaluation.model import (
+    CaseMetricLink,
+    EvalBatchCreate,
+    EvalBatchesResponse,
+    EvalBatchRead,
     EvalCase,
-    EvalCaseRead,
     EvalRun,
 )
 from langflow.services.database.models.flow.model import (
@@ -67,8 +70,21 @@ from langflow.services.database.models.flow.model import (
 from langflow.services.database.models.folder.constants import DEFAULT_FOLDER_NAME
 from langflow.services.database.models.folder.model import Folder
 from langflow.services.deps import get_settings_service, get_storage_service
+from langflow.services.evaluations.evaluations import (
+    EvalCaseService,
+    serialize_eval_batch,
+    serialize_eval_batch_summary,
+    serialize_eval_case,
+    serialize_eval_run,
+)
 from langflow.services.storage.service import StorageService
 from langflow.utils.compression import compress_response
+
+CASE_METRICS_REL = cast(Any, EvalCase.case_metrics)
+CASE_METRIC_EVAL_METRIC_REL = cast(Any, CaseMetricLink.eval_metric)
+RUN_EVAL_CASE_REL = cast(Any, EvalRun.eval_case)
+RUN_EVAL_METRIC_REL = cast(Any, EvalRun.eval_metric)
+RUN_TRACE_REL = cast(Any, EvalRun.trace)
 
 # Re-export helpers so existing ``from langflow.api.v1.flows import ...`` still works.
 __all__ = [
@@ -163,40 +179,95 @@ async def get_all_tools(
 async def list_all_eval_results(
     *,
     flow_id: UUID,
-    # current_user: CurrentActiveUser,
     session: DbSession,
 ):
     statement = (
         select(EvalRun)
-        .join(EvalCase, EvalRun.eval_case_id == EvalCase.id)
+        .join(EvalCase, cast(Any, EvalRun.eval_case_id) == cast(Any, EvalCase.id))
         .where(EvalCase.flow_id == flow_id)
         .options(
-            selectinload(EvalRun.eval_case),
-            selectinload(EvalRun.eval_metric),
-            selectinload(EvalRun.trace),
+            selectinload(RUN_EVAL_CASE_REL).selectinload(CASE_METRICS_REL).selectinload(CASE_METRIC_EVAL_METRIC_REL),
+            selectinload(RUN_EVAL_METRIC_REL),
+            selectinload(RUN_TRACE_REL),
         )
     )
 
     result = await session.exec(statement)
     items = result.fetchall()
 
-    return {
-        "items": [
-            {
-                **item.model_dump(),
-                "eval_case": item.eval_case,
-                "eval_metric": item.eval_metric,
-            }
-            for item in items
-        ]
-    }
+    return {"items": [serialize_eval_run(item).model_dump() for item in items]}
+
+
+@router.get("/{flow_id}/evaluation-batches")
+async def list_eval_batches(
+    *,
+    flow_id: UUID,
+    session: DbSession,
+) -> EvalBatchesResponse:
+    eval_batches = await EvalCaseService.list_eval_batches_for_flow(flow_id, session)
+    return EvalBatchesResponse(
+        items=[serialize_eval_batch_summary(eval_batch) for eval_batch in eval_batches],
+    )
+
+
+@router.get("/{flow_id}/evaluation-batches/{batch_id}")
+async def get_eval_batch(
+    *,
+    flow_id: UUID,
+    batch_id: UUID,
+    session: DbSession,
+) -> EvalBatchRead:
+    eval_batch = await EvalCaseService.get_eval_batch(batch_id, flow_id, session)
+    return serialize_eval_batch(eval_batch)
+
+
+@router.post("/{flow_id}/evaluation-batches")
+async def create_eval_batch(
+    *,
+    flow_id: UUID,
+    payload: EvalBatchCreate,
+    session: DbSession,
+    current_user: CurrentActiveUser,
+) -> EvalBatchRead:
+    if payload.selection_mode == payload.selection_mode.ALL_CASES:
+        eval_cases = await EvalCaseService.get_eval_cases_for_flow(flow_id, session)
+    else:
+        if len(payload.case_ids) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="case_ids must be provided when selection_mode is not all_cases.",
+            )
+        eval_cases = await EvalCaseService.get_eval_cases_for_flow(
+            flow_id,
+            session,
+            payload.case_ids,
+        )
+
+    if len(eval_cases) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No evaluation cases were found for this batch.",
+        )
+
+    eval_batch = await EvalCaseService.execute_batch(
+        flow_id=flow_id,
+        eval_cases=eval_cases,
+        api_key_user=current_user,
+        session=session,
+        user_id=current_user.id,
+        trigger_mode=payload.selection_mode,
+        batch_metadata={
+            "source": "flow_batch_run",
+            "case_ids": [str(eval_case.id) for eval_case in eval_cases],
+        },
+    )
+    return serialize_eval_batch(eval_batch)
 
 
 @router.get("/{flow_id}/evaluations")
 async def list_all_eval_cases(
     *,
     flow_id: UUID,
-    # current_user: CurrentActiveUser,
     session: DbSession,
 ):
     query = (
@@ -205,7 +276,7 @@ async def list_all_eval_cases(
             EvalCase.flow_id == flow_id,
         )
         .options(
-            selectinload(EvalCase.metrics),
+            selectinload(CASE_METRICS_REL).selectinload(CASE_METRIC_EVAL_METRIC_REL),
         )
     )
     count_query = (
@@ -221,18 +292,7 @@ async def list_all_eval_cases(
 
     return {
         "total_count": count,
-        "eval_cases": [
-            EvalCaseRead(
-                id=item.id,
-                name=item.name,
-                input=item.input,
-                expected_output=item.expected_output,
-                model_name=item.model_name,
-                metrics=[m.id for m in item.metrics],
-                flow_id=item.flow_id,
-            )
-            for item in items
-        ],
+        "eval_cases": [serialize_eval_case(item) for item in items],
     }
 
 

@@ -727,7 +727,7 @@ class Vertex:
                 await self._log_transaction_async(
                     str(flow_id), source=self, target=None, status="error", error=str(exc)
                 )
-            msg = f"Error building Component {self.display_name}: \n\n{exc}"
+            msg = f"Error building Component {self.display_name}: \n\n{traceback.format_exc()}"
             raise ComponentBuildError(msg, tb) from exc
 
     def _update_built_object_and_artifacts(self, result: Any | tuple[Any, dict] | tuple[Component, Any, dict]) -> None:

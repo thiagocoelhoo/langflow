@@ -137,6 +137,36 @@ OLLAMA_MODELS_DETAILED = [
     ),
     create_model_metadata(
         provider="Ollama",
+        name="granite4.1:3b",
+        icon="Ollama",
+        tool_calling=True,
+    ),
+    create_model_metadata(
+        provider="Ollama",
+        name="gemma4:e2b",
+        icon="Ollama",
+        tool_calling=True,
+    ),
+    create_model_metadata(
+        provider="Ollama",
+        name="gemma4:e4b",
+        icon="Ollama",
+        tool_calling=True,
+    ),
+    create_model_metadata(
+        provider="Ollama",
+        name="qwen3.5:9b",
+        icon="Ollama",
+        tool_calling=True,
+    ),
+    create_model_metadata(
+        provider="Ollama",
+        name="qwen3.5:2b",
+        icon="Ollama",
+        tool_calling=True,
+    ),
+    create_model_metadata(
+        provider="Ollama",
         name="aya-expanse",
         icon="Ollama",
         tool_calling=True,

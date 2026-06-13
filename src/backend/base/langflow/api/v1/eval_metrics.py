@@ -6,7 +6,11 @@ from sqlmodel import select
 
 from langflow.api.utils import DbSession
 from langflow.services.database.models.evaluation import EvalMetric
-from langflow.services.database.models.evaluation.model import EvalMetricCreate
+from langflow.services.database.models.evaluation.model import (
+    CaseMetricLink,
+    EvalMetricCreate,
+    EvalMetricUpdate,
+)
 
 router = APIRouter(prefix="/evaluations/metrics")
 
@@ -38,3 +42,47 @@ async def create_metric(payload: EvalMetricCreate, session: DbSession) -> EvalMe
     await session.flush()
     await session.refresh(metric)
     return metric
+
+
+@router.patch("/{metric_id}")
+async def update_metric(
+    metric_id: UUID,
+    payload: EvalMetricUpdate,
+    session: DbSession,
+) -> EvalMetric:
+    metric = await session.get(EvalMetric, metric_id)
+
+    if metric is None:
+        raise HTTPException(status_code=404, detail="Metric not found.")
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for field_name, field_value in update_data.items():
+        setattr(metric, field_name, field_value)
+
+    session.add(metric)
+    await session.flush()
+    await session.refresh(metric)
+    return metric
+
+
+@router.delete("/{metric_id}")
+async def delete_metric(metric_id: UUID, session: DbSession):
+    metric = await session.get(EvalMetric, metric_id)
+
+    if metric is None:
+        raise HTTPException(status_code=404, detail="Metric not found.")
+
+    linked_case_metric = (
+        await session.exec(select(CaseMetricLink).where(CaseMetricLink.metric_id == metric_id))
+    ).first()
+
+    if linked_case_metric is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Metric is used by at least one evaluation case and cannot be deleted.",
+        )
+
+    await session.delete(metric)
+    await session.flush()
+
+    return {"id": str(metric_id), "deleted": True}

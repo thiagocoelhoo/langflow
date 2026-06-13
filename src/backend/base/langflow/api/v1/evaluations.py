@@ -303,8 +303,7 @@ class EvalMiscServices:
 
     @staticmethod
     async def get_user_api_key():
-        """
-        Essa função é apenas temporária, é mandatório que você apague a APIKEY hardcoded abaixo
+        """Essa função é apenas temporária, é mandatório que você apague a APIKEY hardcoded abaixo
         em detrimento do uso de argumentos
         """
         return await get_auth_service().api_key_security(None, "sk-C8IKGcT8yCpAVoTJWQ5zNSqLPetITo946G4K7srltO0")
@@ -582,7 +581,7 @@ async def list_all_evaluation_results(
     limit: int = 10,
     session: DbSession,
 ) -> EvalRunsResponse:
-    # TODO: implementar filtros (project, user, evaluation case, folder, etc)
+    # Thiago Coelho - TODO: implementar filtros (project, user, evaluation case, folder, etc)
     query = select(EvalRun).offset(skip).limit(limit)
     count_query = select(func.count()).select_from(EvalRun)
 

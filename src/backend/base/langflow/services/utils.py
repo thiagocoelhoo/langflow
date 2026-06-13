@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import traceback
 from importlib import import_module
 from typing import TYPE_CHECKING
 
@@ -96,7 +97,7 @@ async def setup_superuser(settings_service: SettingsService, session: AsyncSessi
             await logger.adebug("Superuser created successfully.")
     except Exception as exc:
         logger.exception(exc)
-        msg = "Could not create superuser. Please create a superuser manually."
+        msg = f"Could not create superuser. Please create a superuser manually. \n TRACEBACK: {traceback.format_exc()}"
         raise RuntimeError(msg) from exc
     finally:
         # Scrub credentials from in-memory settings after setup

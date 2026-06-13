@@ -1,44 +1,36 @@
-from typing import TypedDict
+from typing import Any, TypedDict
 
-from langflow_sdk import RunResponse
 from pydantic import BaseModel
-from typing_extensions import override
+from typing_extensions import NotRequired, override
 
+from langflow.api.v1.schemas import RunResponse
 from langflow.services.database.models.evaluation import EvalCase
+from langflow.services.database.models.traces import TraceTable
 from langflow.services.evaluations.algorithms.algorithm import Algorithm, AlgorithmOutput
 
 
-class ToolUsageParams(TypedDict):
-    pass
+class ToolUsageParams(TypedDict, total=False):
+    tool: NotRequired[str]
 
 
 class ToolUsageParamsValidator(BaseModel):
-    pass
+    tool: str | None = None
 
 
 class ToolUsage(Algorithm):
-    def __init__(self, params: ToolUsageParams):
-        validated_params = ToolUsageParamsValidator.validate(params)
-        _ = validated_params
+    def __init__(self, params: dict[str, Any]):
+        validated_params = ToolUsageParamsValidator.model_validate(params)
+        self._tool = validated_params.tool
 
     @override
-    def run(self, eval_case: EvalCase, flow_output: RunResponse) -> AlgorithmOutput:
-        # Extrair o texto da resposta do fluxo
-        response_text = self.extract_response_text(flow_output)
-        messages = [response_text] if response_text else []
-
-        judge_output = self._invoke_judge(
-            expected_output=eval_case.expected_output,
-            actual_output={
-                "message": messages[0] if len(messages) > 0 else " ",
-                "tools": [],
-            },
-        )
-
-        # TODO: implementar uma validação e tratamento mais adequado
-        result = self._process_judge_output(judge_output)
-
+    def run(
+        self,
+        eval_case: EvalCase,
+        flow_output: RunResponse,
+        trace: TraceTable | None = None,
+    ) -> AlgorithmOutput:
+        tool_msg = f" for tool '{self._tool}'" if self._tool else ""
         return {
-            "score": result.get("score", -1),
-            "message": str(result.get("response", "Error")),
+            "score": 0,
+            "message": f"Tool evaluation is not implemented yet{tool_msg}.",
         }
